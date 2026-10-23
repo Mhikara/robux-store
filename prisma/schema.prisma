@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  COMPLETED
+  EXPIRED
+  FAILED
+}
+
+enum PaymentMethod {
+  QRIS
+  DANA
+  GOPAY
+  OVO
+}
+
+model StoreConfig {
+  id            Int      @id @default(1)
+  totalStock    Int      @default(10000)
+  reservedStock Int      @default(0)
+  pricePerRobux Int      @default(100)
+  updatedAt     DateTime @updatedAt
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  robloxUsername    String
+  robloxUserId      String?
+  robloxDisplayName String?
+  robuxAmount       Int
+  pricePerRobux     Int
+  totalPrice        Int
+  buyerEmail        String?
+  buyerWhatsapp     String?
+  paymentMethod     PaymentMethod?
+  status            OrderStatus   @default(PENDING)
+  expiresAt         DateTime?
+  paidAt            DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([status, createdAt])
+  @@index([expiresAt])
+}
