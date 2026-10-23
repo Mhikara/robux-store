@@ -141,7 +141,15 @@ export async function POST(request: Request) {
       ]
     );
 
-    await client.query("COMMIT");
+    await client.query(
+    `UPDATE "StoreConfig"
+     SET "reservedStock" = "reservedStock" + $1,
+         "updatedAt" = NOW()
+     WHERE id = 1`,
+    [amount]
+  );
+
+  await client.query("COMMIT");
 
     return NextResponse.json(
       {
