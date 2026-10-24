@@ -193,24 +193,41 @@ export async function POST(request: NextRequest) {
     // Pesanan EXPIRED/FAILED mungkin sudah melepas reservasi stok.
     if (["EXPIRED", "FAILED"].includes(order.status)) {
       const configResult = await client.query(
-        `SELECT "id" FROM "StoreConfig" ORDER BY "id" LIMIT 1 FOR UPDATE`,
+        `SELECT "id", "totalStock", "reservedStock"
+         FROM "StoreConfig" ORDER BY "id" LIMIT 1 FOR UPDATE`,
       );
 
       if (configResult.rowCount === 0) {
         throw new Error("StoreConfig row not found");
       }
 
+      const config = configResult.rows[0];
+      const availableStock =
+        Number(config.totalStock) - Number(config.reservedStock);
       const robuxAmount = Number(order.robuxAmount);
 
       if (!Number.isSafeInteger(robuxAmount) || robuxAmount <= 0) {
         throw new Error("Invalid Robux amount on order");
       }
 
+      if (robuxAmount > availableStock) {
+        await client.query("COMMIT");
+        console.error(
+          "Late Kasera payment requires manual review; insufficient stock:",
+          payment.external_id
+        );
+        return NextResponse.json({
+          received: true,
+          requiresManualReview: true
+        });
+      }
+
       await client.query(
         `UPDATE "StoreConfig"
-         SET "reservedStock" = "reservedStock" + $1
+         SET "reservedStock" = "reservedStock" + $1,
+             "updatedAt" = NOW()
          WHERE "id" = $2`,
-        [robuxAmount, configResult.rows[0].id],
+        [robuxAmount, config.id],
       );
     }
 
