@@ -100,11 +100,12 @@ export default function Home() {
         throw new Error(paymentData.error || "Gagal membuat checkout pembayaran.");
       }
 
-      if (!paymentData.checkout_url) {
+      const checkoutUrl = paymentData.checkoutUrl || paymentData.checkout_url;
+      if (typeof checkoutUrl !== "string" || !checkoutUrl) {
         throw new Error("Tautan checkout tidak ditemukan.");
       }
 
-      window.location.href = paymentData.checkout_url;
+      window.location.href = checkoutUrl;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Checkout gagal.");
     } finally {
