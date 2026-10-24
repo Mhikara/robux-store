@@ -29,6 +29,7 @@ export default function Home() {
   const [user, setUser] = useState<RobloxUser | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -62,7 +63,56 @@ export default function Home() {
   const total =
     config && valid ? quantity * config.pricePerRobux : 0;
 
-  async function checkUser() {
+  async function checkout() {
+    if (!user || !config || !valid || checkoutLoading) return;
+
+    setCheckoutLoading(true);
+    setMessage("");
+
+    try {
+      const orderResponse = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          robuxAmount: quantity,
+        }),
+      });
+
+      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) {
+        throw new Error(orderData.error || "Gagal membuat pesanan.");
+      }
+
+      const orderId = orderData.order?.id || orderData.orderId || orderData.id;
+      if (!orderId) {
+        throw new Error("Pesanan dibuat, tetapi ID pesanan tidak ditemukan. Periksa respons API sebelum mencoba lagi.");
+      }
+
+      const paymentResponse = await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+
+      const paymentData = await paymentResponse.json();
+      if (!paymentResponse.ok) {
+        throw new Error(paymentData.error || "Gagal membuat checkout pembayaran.");
+      }
+
+      if (!paymentData.checkout_url) {
+        throw new Error("Tautan checkout tidak ditemukan.");
+      }
+
+      window.location.href = paymentData.checkout_url;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Checkout gagal.");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
+async function checkUser() {
     setLoading(true);
     setUser(null);
     setMessage("");
@@ -192,11 +242,11 @@ export default function Home() {
             {message && <p role="status" className="mt-4 text-sm text-slate-300">{message}</p>}
 
             <button
-              disabled={!config || config.stock <= 0 || !valid || !user}
-              onClick={() => setMessage("Pratinjau siap. Checkout akan ditambahkan pada fase berikutnya.")}
+              disabled={!config || config.stock <= 0 || !valid || !user || checkoutLoading}
+              onClick={checkout}
               className="mt-5 w-full rounded-xl bg-violet-600 px-5 py-4 font-bold disabled:cursor-not-allowed disabled:bg-slate-700"
             >
-              {!config ? "Memuat toko..." : config.stock <= 0 ? "Stok habis" : "Periksa pesanan"}
+              {checkoutLoading ? "Menyiapkan pembayaran..." : !config ? "Memuat toko..." : config.stock <= 0 ? "Stok habis" : "Lanjut ke pembayaran"}
             </button>
           </section>
 
