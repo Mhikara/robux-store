@@ -1,0 +1,184 @@
+
+===== orders =====
+--- 1-12 ---
+1: import { NextResponse } from "next/server";
+2: import { Pool } from "pg";
+3: import { randomUUID } from "node:crypto";
+4: 
+5: export const runtime = "nodejs";
+6: 
+7: const globalForPool = globalThis as unknown as {
+8:   ordersPool?: Pool;
+9: };
+10: 
+11: const pool =
+12:   globalForPool.ordersPool ??
+--- 115-170 ---
+115: 
+116:     if (!Number.isSafeInteger(totalPrice)) {
+117:       await client.query("ROLLBACK");
+118:       return NextResponse.json(
+119:         { error: "Total harga tidak valid." },
+120:         { status: 400 }
+121:       );
+122:     }
+123: 
+124:     const orderId = randomUUID();
+125: 
+126:     await client.query(
+127:       `INSERT INTO "Order"
+128:         (id, "robloxUsername", "robuxAmount", "pricePerRobux",
+129:          "totalPrice", "buyerEmail", "buyerWhatsapp", status,
+130:          "createdAt", "updatedAt", "expiresAt")
+131:        VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING',
+132:                NOW(), NOW(), NOW() + INTERVAL '30 minutes')`,
+133:       [
+134:         orderId,
+135:         username,
+136:         amount,
+137:         pricePerRobux,
+138:         totalPrice,
+139:         buyerEmail,
+140:         buyerWhatsapp,
+141:       ]
+142:     );
+143: 
+144:     await client.query(
+145:     `UPDATE "StoreConfig"
+146:      SET "reservedStock" = "reservedStock" + $1,
+147:          "updatedAt" = NOW()
+148:      WHERE id = 1`,
+149:     [amount]
+150:   );
+151: 
+152:   await client.query("COMMIT");
+153: 
+154:     return NextResponse.json(
+155:       {
+156:         orderId,
+157:         username,
+158:         robuxAmount: amount,
+159:         pricePerRobux,
+160:         totalPrice,
+161:         currency: "IDR",
+162:         status: "PENDING",
+163:         expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+164:       },
+165:       { status: 201 }
+166:     );
+167:   } catch (error) {
+168:     await client.query("ROLLBACK").catch(() => {});
+169:     console.error("Create order error:", error);
+170:     return NextResponse.json(
+
+===== checkout =====
+--- 1-20 ---
+1: import { NextResponse } from "next/server";
+2: import { Pool } from "pg";
+3: 
+4: export const runtime = "nodejs";
+5: 
+6: const globalForPool = globalThis as unknown as {
+7:   paymentPool?: Pool;
+8: };
+9: 
+10: const pool =
+11:   globalForPool.paymentPool ??
+12:   new Pool({
+13:     connectionString: process.env.DATABASE_URL,
+14:     ssl: { rejectUnauthorized: false },
+15:     max: 2,
+16:   });
+17: 
+18: if (process.env.NODE_ENV !== "production") {
+19:   globalForPool.paymentPool = pool;
+20: }
+--- 85-118 ---
+85:     return NextResponse.json(
+86:       { error: "Pesanan sudah tidak aktif atau telah kedaluwarsa." },
+87:       { status: 409 }
+88:     );
+89:   }
+90: 
+91:   const amount = Number(order.totalPrice);
+92:   const robuxAmount = Number(order.robuxAmount);
+93: 
+94:   if (
+95:     !Number.isSafeInteger(amount) ||
+96:     amount < 1000 ||
+97:     !Number.isSafeInteger(robuxAmount) ||
+98:     robuxAmount < 10 ||
+99:     robuxAmount > 10000
+100:   ) {
+101:     return NextResponse.json(
+102:       { error: "Nominal pesanan tidak valid." },
+103:       { status: 400 }
+104:     );
+105:   }
+106: 
+107:   const payload = {
+108:     amount,
+109:     description: `Robux Store - ${robuxAmount} Robux`,
+110:     external_id: order.id,
+111:     merchant_ref: order.id,
+112:     payment_methods: ["qris"],
+113:     return_url: "https://robux-store-ashen.vercel.app/",
+114:     expires_in_minutes: 30,
+115:   };
+116: 
+117:   let response: Response;
+118: 
+
+===== home =====
+--- 65-115 ---
+65: 
+66:   async function checkout() {
+67:     if (!user || !config || !valid || checkoutLoading) return;
+68: 
+69:     setCheckoutLoading(true);
+70:     setMessage("");
+71: 
+72:     try {
+73:       const orderResponse = await fetch("/api/orders", {
+74:         method: "POST",
+75:         headers: { "Content-Type": "application/json" },
+76:         body: JSON.stringify({
+77:           username: user.username,
+78:           robuxAmount: quantity,
+79:         }),
+80:       });
+81: 
+82:       const orderData = await orderResponse.json();
+83:       if (!orderResponse.ok) {
+84:         throw new Error(orderData.error || "Gagal membuat pesanan.");
+85:       }
+86: 
+87:       const orderId = orderData.order?.id || orderData.orderId || orderData.id;
+88:       if (!orderId) {
+89:         throw new Error("Pesanan dibuat, tetapi ID pesanan tidak ditemukan. Periksa respons API sebelum mencoba lagi.");
+90:       }
+91: 
+92:       const paymentResponse = await fetch("/api/payments/create", {
+93:         method: "POST",
+94:         headers: { "Content-Type": "application/json" },
+95:         body: JSON.stringify({ orderId }),
+96:       });
+97: 
+98:       const paymentData = await paymentResponse.json();
+99:       if (!paymentResponse.ok) {
+100:         throw new Error(paymentData.error || "Gagal membuat checkout pembayaran.");
+101:       }
+102: 
+103:       const checkoutUrl = paymentData.checkoutUrl || paymentData.checkout_url;
+104:       if (typeof checkoutUrl !== "string" || !checkoutUrl) {
+105:         throw new Error("Tautan checkout tidak ditemukan.");
+106:       }
+107: 
+108:       window.location.href = checkoutUrl;
+109:     } catch (error) {
+110:       setMessage(error instanceof Error ? error.message : "Checkout gagal.");
+111:     } finally {
+112:       setCheckoutLoading(false);
+113:     }
+114:   }
+115: 

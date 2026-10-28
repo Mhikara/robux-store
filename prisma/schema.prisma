@@ -41,6 +41,7 @@ model Order {
   totalPrice        Int
   buyerEmail        String?
   buyerWhatsapp     String?
+  statusTokenHash   String?
   paymentMethod     PaymentMethod?
   status            OrderStatus   @default(PENDING)
   expiresAt         DateTime?

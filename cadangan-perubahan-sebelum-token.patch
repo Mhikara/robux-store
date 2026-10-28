@@ -1,0 +1,12 @@
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index bb7098b..61911c7 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -41,6 +41,7 @@ model Order {
+   totalPrice        Int
+   buyerEmail        String?
+   buyerWhatsapp     String?
++  statusTokenHash   String?
+   paymentMethod     PaymentMethod?
+   status            OrderStatus   @default(PENDING)
+   expiresAt         DateTime?
