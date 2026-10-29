@@ -20,11 +20,17 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.KASERA_PAY_KEY;
+  const apiKey = process.env.KASERA_PAY_KEY || "";
 
-  if (!apiKey || !apiKey.startsWith("kp_test_")) {
+  const isLiveKey = apiKey.startsWith("kp_live_");
+  const isTestKey = apiKey.startsWith("kp_test_");
+
+  if (!apiKey || (!isLiveKey && !isTestKey)) {
     return NextResponse.json(
-      { error: "API key test Kasera Pay belum dikonfigurasi." },
+      {
+        error:
+          "API key Kasera Pay belum dikonfigurasi. Gunakan kp_test_... atau kp_live_...",
+      },
       { status: 503 }
     );
   }
@@ -40,10 +46,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (
-    typeof body.orderId !== "string" ||
-    body.orderId.length > 100
-  ) {
+  if (typeof body.orderId !== "string" || body.orderId.length > 100) {
     return NextResponse.json(
       { error: "ID pesanan tidak valid." },
       { status: 400 }
@@ -60,7 +63,6 @@ export async function POST(request: Request) {
        LIMIT 1`,
       [body.orderId]
     );
-
     order = result.rows[0];
   } catch (error) {
     console.error("Read order for checkout failed:", error);
@@ -104,33 +106,35 @@ export async function POST(request: Request) {
     );
   }
 
+  const appUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://robux-store-ashen.vercel.app"
+  ).replace(/\/$/, "");
+
   const payload = {
     amount,
     description: `Robux Store - ${robuxAmount} Robux`,
     external_id: order.id,
     merchant_ref: order.id,
     payment_methods: ["qris"],
-    return_url: "https://robux-store-ashen.vercel.app/",
+    return_url: `${appUrl}/`,
     expires_in_minutes: 30,
   };
 
   let response: Response;
 
   try {
-    response = await fetch(
-      "https://pay.kasera.id/v1/transactions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": order.id,
-        },
-        body: JSON.stringify(payload),
-        cache: "no-store",
-        signal: AbortSignal.timeout(15000),
-      }
-    );
+    response = await fetch("https://pay.kasera.id/v1/transactions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": order.id,
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: AbortSignal.timeout(15000),
+    });
   } catch (error) {
     console.error("Kasera checkout request failed:", error);
     return NextResponse.json(
@@ -142,27 +146,36 @@ export async function POST(request: Request) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    console.error("Kasera checkout rejected:", response.status);
+    console.error("Kasera checkout rejected:", response.status, data);
     return NextResponse.json(
       { error: "Kasera Pay menolak permintaan checkout." },
       { status: 502 }
     );
   }
 
+  // Key live → respons harus livemode true; key test → livemode false
+  const expectedLive = isLiveKey;
   if (
-    data?.livemode !== false ||
+    typeof data?.livemode !== "boolean" ||
+    data.livemode !== expectedLive ||
     typeof data?.checkout_url !== "string" ||
     typeof data?.id !== "string"
   ) {
-    console.error("Unexpected Kasera test response.");
+    console.error("Unexpected Kasera response:", {
+      expectedLive,
+      livemode: data?.livemode,
+    });
     return NextResponse.json(
-      { error: "Respons test Kasera Pay tidak sesuai." },
+      {
+        error: expectedLive
+          ? "Respons Kasera live tidak sesuai. Cek API key live."
+          : "Respons Kasera test tidak sesuai.",
+      },
       { status: 502 }
     );
   }
 
   let checkoutUrl: URL;
-
   try {
     checkoutUrl = new URL(data.checkout_url);
   } catch {
@@ -182,6 +195,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     orderId: order.id,
     status: "PENDING",
+    livemode: data.livemode,
     checkoutUrl: checkoutUrl.toString(),
     expiresAt: data.expires_at ?? null,
   });

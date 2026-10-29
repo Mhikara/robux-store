@@ -23,7 +23,7 @@ if (process.env.NODE_ENV !== "production") {
 function verifySignature(
   rawBody: string,
   header: string,
-  secret: string,
+  secret: string
 ): boolean {
   let timestamp = "";
   const signatures: string[] = [];
@@ -46,13 +46,12 @@ function verifySignature(
   }
 
   const expected = createHmac("sha256", secret)
-    .update(`${timestamp}.${rawBody}`)
+    .update(`\( {timestamp}. \){rawBody}`)
     .digest();
 
   return signatures.some((signature) => {
     if (!/^[a-f0-9]{64}$/i.test(signature)) return false;
     const supplied = Buffer.from(signature, "hex");
-
     return (
       supplied.length === expected.length &&
       timingSafeEqual(supplied, expected)
@@ -62,12 +61,14 @@ function verifySignature(
 
 export async function POST(request: NextRequest) {
   const secret = process.env.KASERA_WEBHOOK_SECRET;
+  const apiKey = process.env.KASERA_PAY_KEY || "";
+  const expectLive = apiKey.startsWith("kp_live_");
 
   if (!process.env.DATABASE_URL || !secret) {
     console.error("Webhook configuration is incomplete.");
     return NextResponse.json(
       { error: "Webhook belum dikonfigurasi." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
@@ -77,12 +78,11 @@ export async function POST(request: NextRequest) {
   if (!signature || !verifySignature(rawBody, signature, secret)) {
     return NextResponse.json(
       { error: "Tanda tangan tidak valid." },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
   let event: any;
-
   try {
     event = JSON.parse(rawBody);
   } catch {
@@ -96,14 +96,27 @@ export async function POST(request: NextRequest) {
     eventId.length < 1 ||
     eventId.length > 255
   ) {
-    return NextResponse.json({ error: "Event ID tidak valid." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Event ID tidak valid." },
+      { status: 400 }
+    );
   }
 
-  // Hanya izinkan event dari mode sandbox.
-  if (event?.livemode !== false) {
+  // Samakan mode event dengan mode API key (live key → hanya event live)
+  if (typeof event?.livemode !== "boolean") {
     return NextResponse.json(
-      { error: "Event bukan dari mode sandbox." },
-      { status: 400 },
+      { error: "Field livemode tidak valid." },
+      { status: 400 }
+    );
+  }
+  if (event.livemode !== expectLive) {
+    return NextResponse.json(
+      {
+        error: expectLive
+          ? "Event bukan dari mode live."
+          : "Event bukan dari mode sandbox.",
+      },
+      { status: 400 }
     );
   }
 
@@ -123,7 +136,7 @@ export async function POST(request: NextRequest) {
   ) {
     return NextResponse.json(
       { error: "Data pembayaran tidak valid." },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -145,7 +158,7 @@ export async function POST(request: NextRequest) {
        VALUES ($1)
        ON CONFLICT ("eventId") DO NOTHING
        RETURNING "eventId"`,
-      [eventId],
+      [eventId]
     );
 
     if (inserted.rowCount === 0) {
@@ -158,14 +171,14 @@ export async function POST(request: NextRequest) {
        FROM "Order"
        WHERE "id" = $1
        FOR UPDATE`,
-      [payment.external_id],
+      [payment.external_id]
     );
 
     if (orderResult.rowCount === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json(
         { error: "Pesanan tidak ditemukan." },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -176,7 +189,7 @@ export async function POST(request: NextRequest) {
       console.error("Kasera amount mismatch for order:", payment.external_id);
       return NextResponse.json(
         { error: "Nominal pembayaran tidak cocok." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -190,11 +203,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, ignored: true });
     }
 
-    // Pesanan EXPIRED/FAILED mungkin sudah melepas reservasi stok.
     if (["EXPIRED", "FAILED"].includes(order.status)) {
       const configResult = await client.query(
         `SELECT "id", "totalStock", "reservedStock"
-         FROM "StoreConfig" ORDER BY "id" LIMIT 1 FOR UPDATE`,
+         FROM "StoreConfig" ORDER BY "id" LIMIT 1 FOR UPDATE`
       );
 
       if (configResult.rowCount === 0) {
@@ -218,7 +230,7 @@ export async function POST(request: NextRequest) {
         );
         return NextResponse.json({
           received: true,
-          requiresManualReview: true
+          requiresManualReview: true,
         });
       }
 
@@ -227,7 +239,7 @@ export async function POST(request: NextRequest) {
          SET "reservedStock" = "reservedStock" + $1,
              "updatedAt" = NOW()
          WHERE "id" = $2`,
-        [robuxAmount, config.id],
+        [robuxAmount, config.id]
       );
     }
 
@@ -237,22 +249,21 @@ export async function POST(request: NextRequest) {
            "paidAt" = COALESCE("paidAt", NOW()),
            "updatedAt" = NOW()
        WHERE "id" = $1`,
-      [payment.external_id],
+      [payment.external_id]
     );
 
     await client.query("COMMIT");
-    return NextResponse.json({ received: true, paid: true });
+    return NextResponse.json({ received: true, paid: true, livemode: expectLive });
   } catch (error) {
     if (client) {
       try {
         await client.query("ROLLBACK");
       } catch {}
     }
-
     console.error("Kasera webhook processing failed:", error);
     return NextResponse.json(
       { error: "Gagal memproses webhook." },
-      { status: 500 },
+      { status: 500 }
     );
   } finally {
     client?.release();
