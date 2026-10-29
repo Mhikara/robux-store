@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 type Order = {
   id: string;
@@ -28,48 +28,81 @@ const labels: Record<string, string> = {
   PROCESSING: "Robux sedang diproses",
   COMPLETED: "Pesanan selesai",
   EXPIRED: "Pesanan kedaluwarsa",
-  FAILED: "Pembayaran / pesanan gagal",
-};
-
-const nextStep: Record<string, string> = {
-  PENDING:
-    "Selesaikan pembayaran di halaman Kasera Pay. Halaman ini akan berubah otomatis setelah pembayaran terverifikasi.",
-  PAID: "Pembayaran sudah diterima. Admin sedang menyiapkan pengiriman Robux ke akun Anda.",
-  PROCESSING: "Robux sedang dikirim ke username yang Anda masukkan. Mohon tunggu.",
-  COMPLETED: "Pesanan selesai. Cek saldo Robux di akun Roblox Anda.",
-  EXPIRED: "Batas waktu pembayaran habis. Buat pesanan baru jika masih membutuhkan Robux.",
-  FAILED: "Pesanan gagal. Hubungi admin jika Anda sudah membayar.",
+  FAILED: "Pembayaran gagal",
 };
 
 export default function StatusPesanan() {
-  const [token, setToken] = useState("");
-  const [order, setOrder] = useState<Order | null>(null);
+  const [query, setQuery] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [empty, setEmpty] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [initialDone, setInitialDone] = useState(false);
 
-  const load = useCallback(async (t: string) => {
+  const loadByToken = useCallback(async (token: string) => {
+    setLoading(true);
+    setError("");
+    setEmpty(false);
     try {
       const r = await fetch("/api/orders/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: t }),
+        body: JSON.stringify({ token }),
         cache: "no-store",
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Gagal memuat status.");
-      setOrder(d.order);
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat status.");
+      if (!r.ok) {
+        setOrders([]);
+        setEmpty(true);
+        setError(d.message || d.error || "Tidak ada data invoice");
+        return;
+      }
+      setOrders(d.orders || (d.order ? [d.order] : []));
+    } catch {
+      setError("Gagal memuat status.");
+      setOrders([]);
     } finally {
       setLoading(false);
+      setInitialDone(true);
+    }
+  }, []);
+
+  const loadByQuery = useCallback(async (q: string) => {
+    setLoading(true);
+    setError("");
+    setEmpty(false);
+    try {
+      const r = await fetch("/api/orders/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q.trim() }),
+        cache: "no-store",
+      });
+      const d = await r.json();
+      if (!r.ok || !(d.orders && d.orders.length)) {
+        setOrders([]);
+        setEmpty(true);
+        setError(
+          d.message ||
+            "Username atau email yang dimasukkan belum memiliki riwayat transaksi, harap masukkan email & username dengan tepat"
+        );
+        return;
+      }
+      setOrders(d.orders);
+      setEmpty(false);
+    } catch {
+      setError("Gagal memuat status.");
+      setOrders([]);
+      setEmpty(true);
+    } finally {
+      setLoading(false);
+      setInitialDone(true);
     }
   }, []);
 
   useEffect(() => {
     let t =
       new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
-
     if (!t) {
       try {
         t = sessionStorage.getItem("robux_status_token") || "";
@@ -77,98 +110,115 @@ export default function StatusPesanan() {
         t = "";
       }
     }
-
     if (t && t.length >= 40) {
-      setToken(t);
-      // Samakan hash agar tautan bisa disalin
-      if (!window.location.hash.includes("token=")) {
-        window.location.hash = `token=${t}`;
-      }
-      void load(t);
-      const timer = setInterval(() => void load(t), 15000);
-      return () => clearInterval(timer);
+      void loadByToken(t);
+    } else {
+      setInitialDone(true);
     }
+  }, [loadByToken]);
 
-    setError(
-      "Token status tidak ditemukan. Buka tautan status setelah membuat pesanan, atau kembali ke beranda lalu buat pesanan baru."
-    );
-    setLoading(false);
-  }, [load]);
-
-  const copy = async () => {
-    const url =
-      token.length >= 40
-        ? `\( {window.location.origin}/status-pesanan#token= \){token}`
-        : window.location.href;
-    await navigator.clipboard.writeText(url);
-  };
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (query.trim().length < 3) {
+      setEmpty(true);
+      setOrders([]);
+      setError("Masukkan username Roblox atau email (minimal 3 karakter).");
+      return;
+    }
+    void loadByQuery(query);
+  }
 
   return (
-    <main className="min-h-screen bg-[#090b12] px-4 py-10 text-white">
-      <div className="mx-auto max-w-xl">
-        <a href="/" className="text-sm text-violet-300">
-          ← Robux Store
-        </a>
-        <h1 className="mt-5 text-3xl font-black">Status pesanan</h1>
-        <p className="mt-2 text-slate-400">
-          Status pembayaran dan pengiriman Robux dipisah. Halaman ini
-          memperbarui otomatis setiap 15 detik.
+    <main className="min-h-screen bg-[#0b0e14] px-4 py-8 text-white">
+      <div className="mx-auto max-w-lg">
+        <div className="mb-6 flex items-center justify-between">
+          <a href="/" className="text-sm text-slate-400">
+            ← Beranda
+          </a>
+        </div>
+
+        <h1 className="text-center text-3xl font-black text-amber-400">
+          Cek Pesanan
+        </h1>
+        <p className="mt-2 text-center text-sm text-slate-300">
+          Cek pesanan kamu dengan email ataupun username lalu klik cek
         </p>
 
-        {loading ? (
-          <p className="mt-8 rounded-2xl bg-[#111521] p-5">Memuat pesanan…</p>
-        ) : error ? (
-          <div className="mt-6 rounded-2xl border border-red-400/20 bg-[#111521] p-5 text-red-200">
-            {error}
-            <a
-              href="/"
-              className="mt-4 block text-sm font-bold text-violet-300"
-            >
-              Kembali ke beranda →
-            </a>
+        <form onSubmit={onSubmit} className="mt-8 flex gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Masukkan email Atau username"
+            className="min-w-0 flex-1 rounded-xl border-0 bg-[#2a2f3a] px-4 py-3 text-sm text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-amber-500/50"
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-xl bg-[#8B6914] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {loading ? "..." : "cek"}
+          </button>
+        </form>
+
+        <hr className="my-8 border-white/10" />
+
+        {loading && (
+          <p className="text-center text-sm text-slate-400">Memuat…</p>
+        )}
+
+        {!loading && empty && (
+          <div className="flex flex-col items-center px-4 py-6 text-center">
+            <div className="mb-4 flex h-28 w-28 items-center justify-center rounded-full bg-[#f5e6c8]">
+              <span className="text-5xl" aria-hidden>
+                📱
+              </span>
+            </div>
+            <h2 className="text-xl font-black text-amber-400">
+              Tidak ada data invoice
+            </h2>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">
+              {error ||
+                "Username atau email yang dimasukkan belum memiliki riwayat transaksi, harap masukkan email & username dengan tepat"}
+            </p>
           </div>
-        ) : (
-          order && (
-            <>
-              <section className="mt-6 rounded-2xl border border-white/10 bg-[#111521] p-5">
-                <p className="text-sm text-slate-400">Status saat ini</p>
-                <p className="mt-2 text-2xl font-black text-violet-300">
-                  {labels[order.status] || order.status}
-                </p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">
-                  {nextStep[order.status] || ""}
-                </p>
-                <p className="mt-3 text-sm text-slate-400">
-                  ID pesanan:{" "}
-                  <span className="break-all text-white">{order.id}</span>
-                </p>
-                <hr className="my-5 border-white/10" />
-                <div className="grid grid-cols-2 gap-4 text-sm">
+        )}
+
+        {!loading && !empty && orders.length > 0 && (
+          <div className="space-y-4">
+            {orders.map((order) => (
+              <section
+                key={order.id}
+                className="rounded-2xl border border-white/10 bg-[#151a24] p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-slate-400">Username Roblox</p>
-                    <p className="mt-1 font-bold">{order.username}</p>
+                    <p className="text-xs text-slate-400">Username</p>
+                    <p className="font-bold">@{order.username}</p>
                   </div>
+                  <span className="rounded-lg bg-amber-500/15 px-2 py-1 text-xs font-bold text-amber-300">
+                    {labels[order.status] || order.status}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-slate-400">Jumlah</p>
-                    <p className="mt-1 font-bold">
+                    <p className="font-bold">
                       {order.robuxAmount.toLocaleString("id-ID")} Robux
                     </p>
                   </div>
                   <div>
-                    <p className="text-slate-400">Harga per Robux</p>
-                    <p className="mt-1 font-bold">
-                      {money(order.pricePerRobux)}
-                    </p>
-                  </div>
-                  <div>
                     <p className="text-slate-400">Total</p>
-                    <p className="mt-1 font-bold text-emerald-300">
+                    <p className="font-bold text-emerald-300">
                       {money(order.totalPrice)}
                     </p>
                   </div>
                 </div>
-                <p className="mt-5 text-xs text-slate-500">
-                  Dibuat: {new Date(order.createdAt).toLocaleString("id-ID")}
+                <p className="mt-3 break-all text-xs text-slate-500">
+                  ID: {order.id}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {new Date(order.createdAt).toLocaleString("id-ID")}
                 </p>
                 {order.paidAt && (
                   <p className="mt-1 text-xs text-slate-500">
@@ -182,30 +232,14 @@ export default function StatusPesanan() {
                   </p>
                 )}
               </section>
+            ))}
+          </div>
+        )}
 
-              <section className="mt-4 rounded-2xl border border-white/10 bg-[#111521] p-5">
-                <h2 className="font-bold">Invoice / bukti transaksi</h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Simpan tautan ini. Status berasal dari server, bukan dari
-                  screenshot pembayaran.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => window.print()}
-                    className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold"
-                  >
-                    Cetak / Simpan PDF
-                  </button>
-                  <button
-                    onClick={() => void copy()}
-                    className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold"
-                  >
-                    Salin tautan status
-                  </button>
-                </div>
-              </section>
-            </>
-          )
+        {!loading && initialDone && !empty && orders.length === 0 && !error && (
+          <p className="text-center text-sm text-slate-500">
+            Masukkan username Roblox atau email, lalu klik <strong>cek</strong>.
+          </p>
         )}
       </div>
     </main>
