@@ -180,6 +180,9 @@ export default function AdminPage() {
             <p className="mt-2 text-sm text-slate-400">
               Atur stok, harga, dan pesanan.
             </p>
+            <a href="/" className="mt-2 inline-block text-xs text-violet-300">
+              ← Kembali ke toko
+            </a>
           </div>
           {loggedIn && (
             <button
