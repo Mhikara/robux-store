@@ -172,6 +172,9 @@ async function checkUser() {
             <a href="/status-pesanan" className="text-xs font-bold text-violet-300">
               Cek status
             </a>
+            <a href="/admin" className="text-xs text-slate-500 hover:text-slate-300">
+              Admin
+            </a>
             <span className="text-xs text-emerald-300">● Toko online</span>
           </div>
         </div>
