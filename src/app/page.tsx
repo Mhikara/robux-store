@@ -315,6 +315,12 @@ async function checkUser() {
             >
               Cek Pesanan
             </a>
+            <a
+              href="/status-pesanan"
+              className="mb-5 flex w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-black"
+            >
+              Cek Pesanan
+            </a>
             <h3 className="font-bold">Cara pembelian</h3>
             <ol className="mt-4 space-y-4 text-sm text-slate-400">
               <li>01 — Periksa username Roblox.</li>
