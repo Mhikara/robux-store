@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Pool } from "pg";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 
@@ -48,11 +48,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (
-    !Number.isSafeInteger(amount) ||
-    amount < 10 ||
-    amount > 10000
-  ) {
+  if (!Number.isSafeInteger(amount) || amount < 10 || amount > 10000) {
     return NextResponse.json(
       { error: "Jumlah Robux harus 10–10.000." },
       { status: 400 }
@@ -85,6 +81,10 @@ export async function POST(request: Request) {
   try {
     await client.query("BEGIN");
 
+    await client.query(
+      `ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "statusTokenHash" TEXT`
+    );
+
     const config = await client.query(
       'SELECT "totalStock", "reservedStock", "pricePerRobux" FROM "StoreConfig" WHERE id = 1 FOR UPDATE'
     );
@@ -110,7 +110,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Harga dihitung dari database, tidak dari input pengguna.
     const totalPrice = amount * pricePerRobux;
 
     if (!Number.isSafeInteger(totalPrice)) {
@@ -122,13 +121,17 @@ export async function POST(request: Request) {
     }
 
     const orderId = randomUUID();
+    const statusToken = randomBytes(32).toString("hex");
+    const statusTokenHash = createHash("sha256")
+      .update(statusToken)
+      .digest("hex");
 
     await client.query(
       `INSERT INTO "Order"
         (id, "robloxUsername", "robuxAmount", "pricePerRobux",
-         "totalPrice", "buyerEmail", "buyerWhatsapp", status,
+         "totalPrice", "buyerEmail", "buyerWhatsapp", "statusTokenHash", status,
          "createdAt", "updatedAt", "expiresAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING',
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING',
                NOW(), NOW(), NOW() + INTERVAL '30 minutes')`,
       [
         orderId,
@@ -138,18 +141,19 @@ export async function POST(request: Request) {
         totalPrice,
         buyerEmail,
         buyerWhatsapp,
+        statusTokenHash,
       ]
     );
 
     await client.query(
-    `UPDATE "StoreConfig"
-     SET "reservedStock" = "reservedStock" + $1,
-         "updatedAt" = NOW()
-     WHERE id = 1`,
-    [amount]
-  );
+      `UPDATE "StoreConfig"
+       SET "reservedStock" = "reservedStock" + $1,
+           "updatedAt" = NOW()
+       WHERE id = 1`,
+      [amount]
+    );
 
-  await client.query("COMMIT");
+    await client.query("COMMIT");
 
     return NextResponse.json(
       {
@@ -160,6 +164,8 @@ export async function POST(request: Request) {
         totalPrice,
         currency: "IDR",
         status: "PENDING",
+        statusToken,
+        statusUrl: `/status-pesanan#token=${statusToken}`,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       },
       { status: 201 }

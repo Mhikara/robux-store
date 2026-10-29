@@ -89,6 +89,16 @@ export default function Home() {
         throw new Error("Pesanan dibuat, tetapi ID pesanan tidak ditemukan. Periksa respons API sebelum mencoba lagi.");
       }
 
+      const statusToken = orderData.statusToken as string | undefined;
+      if (typeof statusToken === "string" && statusToken.length >= 40) {
+        try {
+          sessionStorage.setItem("robux_status_token", statusToken);
+          sessionStorage.setItem("robux_status_order", String(orderId));
+        } catch {
+          // ignore
+        }
+      }
+
       const paymentResponse = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
