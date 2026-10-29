@@ -169,8 +169,8 @@ async function checkUser() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/status-pesanan" className="text-xs font-bold text-violet-300">
-              Cek status
+            <a href="/status-pesanan" className="text-xs font-bold text-amber-400">
+              Cek Pesanan
             </a>
             <a href="/admin" className="text-xs text-slate-500 hover:text-slate-300">
               Admin
@@ -291,6 +291,12 @@ async function checkUser() {
             >
               {checkoutLoading ? "Menyiapkan pembayaran..." : !config ? "Memuat toko..." : config.stock <= 0 ? "Stok habis" : "Lanjut ke pembayaran"}
             </button>
+            <a
+              href="/status-pesanan"
+              className="mt-3 block w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-5 py-3 text-center text-sm font-bold text-amber-300"
+            >
+              Cek Pesanan
+            </a>
           </section>
 
           <aside className="rounded-3xl border border-white/10 bg-[#111521] p-6">
@@ -303,6 +309,12 @@ async function checkUser() {
               <p className="mt-4 text-sm font-bold text-red-300">Stok habis</p>
             )}
             <hr className="my-6 border-white/10" />
+            <a
+              href="/status-pesanan"
+              className="mb-5 flex w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-black"
+            >
+              Cek Pesanan
+            </a>
             <h3 className="font-bold">Cara pembelian</h3>
             <ol className="mt-4 space-y-4 text-sm text-slate-400">
               <li>01 — Periksa username Roblox.</li>
