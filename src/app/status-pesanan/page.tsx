@@ -231,6 +231,31 @@ export default function StatusPesanan() {
                     {new Date(order.completedAt).toLocaleString("id-ID")}
                   </p>
                 )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard.writeText(order.id)}
+                    className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold"
+                  >
+                    Salin ID
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold"
+                  >
+                    Invoice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (query.trim().length >= 3) void loadByQuery(query);
+                    }}
+                    className="rounded-lg bg-amber-500/20 px-3 py-2 text-xs font-bold text-amber-200"
+                  >
+                    Perbarui
+                  </button>
+                </div>
               </section>
             ))}
           </div>
@@ -241,6 +266,14 @@ export default function StatusPesanan() {
             Masukkan username Roblox atau email, lalu klik <strong>cek</strong>.
           </p>
         )}
+        <p className="mt-10 text-center text-xs text-slate-500">
+          Butuh bantuan?{" "}
+          <a href="/" className="text-amber-400">
+            Kembali ke beranda
+          </a>
+          {" · "}
+          <span className="text-slate-400">Hubungi admin via WhatsApp toko Anda</span>
+        </p>
       </div>
     </main>
   );

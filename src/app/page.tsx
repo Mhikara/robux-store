@@ -236,10 +236,20 @@ async function checkUser() {
                 {user.avatar && (
                   <img src={user.avatar} alt="Avatar Roblox" className="h-12 w-12 rounded-lg" />
                 )}
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-bold">{user.displayName}</p>
                   <p className="text-sm text-slate-400">@{user.username}</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUser(null);
+                    setMessage("Username dibatalkan. Periksa ulang jika perlu.");
+                  }}
+                  className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold"
+                >
+                  Ubah
+                </button>
               </div>
             )}
 
@@ -297,6 +307,18 @@ async function checkUser() {
             >
               Cek Pesanan
             </a>
+            <button
+              type="button"
+              onClick={() => {
+                setUsername("");
+                setUser(null);
+                setAmount("100");
+                setMessage("");
+              }}
+              className="mt-2 w-full rounded-xl border border-white/10 px-5 py-3 text-sm text-slate-400"
+            >
+              Reset form
+            </button>
           </section>
 
           <aside className="rounded-3xl border border-white/10 bg-[#111521] p-6">
@@ -309,12 +331,6 @@ async function checkUser() {
               <p className="mt-4 text-sm font-bold text-red-300">Stok habis</p>
             )}
             <hr className="my-6 border-white/10" />
-            <a
-              href="/status-pesanan"
-              className="mb-5 flex w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-black"
-            >
-              Cek Pesanan
-            </a>
             <a
               href="/status-pesanan"
               className="mb-5 flex w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-black"
