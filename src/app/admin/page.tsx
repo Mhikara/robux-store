@@ -345,6 +345,29 @@ export default function AdminPage() {
                 >
                   Cari
                 </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setSearchQ("");
+                    setFilterStatus("");
+                    void loadOrders("", "");
+                  }}
+                  className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void loadConfig();
+                    setMessage("Data dimuat ulang.");
+                  }}
+                  className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold"
+                >
+                  Muat ulang
+                </button>
               </div>
 
               <div className="mt-4 space-y-3">
