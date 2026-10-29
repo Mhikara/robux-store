@@ -30,6 +30,16 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const t = sessionStorage.getItem("robux_status_token");
+      if (t && t.length >= 40) setStatusBanner(t);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -158,11 +168,30 @@ async function checkUser() {
               <p className="text-xs text-slate-400">Top up praktis</p>
             </div>
           </div>
-          <span className="text-xs text-emerald-300">● Toko online</span>
+          <div className="flex items-center gap-3">
+            <a href="/status-pesanan" className="text-xs font-bold text-violet-300">
+              Cek status
+            </a>
+            <span className="text-xs text-emerald-300">● Toko online</span>
+          </div>
         </div>
       </header>
 
       <section className="mx-auto max-w-5xl px-5 py-12">
+        {statusBanner && (
+          <div className="mb-6 rounded-2xl border border-violet-400/30 bg-violet-500/10 p-4 text-sm">
+            <p className="font-bold text-violet-200">Ada pesanan yang bisa dilacak</p>
+            <p className="mt-1 text-slate-300">
+              Setelah bayar di Kasera, buka halaman status untuk melihat progres.
+            </p>
+            <a
+              href={`/status-pesanan#token=${statusBanner}`}
+              className="mt-3 inline-block rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold"
+            >
+              Lihat status pesanan
+            </a>
+          </div>
+        )}
         <p className="mb-3 text-sm font-bold tracking-[.2em] text-violet-400">
           ROBLOX TOP UP
         </p>
@@ -279,7 +308,7 @@ async function checkUser() {
             </ol>
             <p className="mt-6 text-xs leading-5 text-slate-500">
               Jangan pernah memberikan password Roblox kepada toko.
-              Pembayaran belum aktif pada Fase 1.
+              Jangan bagikan password Roblox. Simpan tautan status pesanan Anda.
             </p>
           </aside>
         </div>
