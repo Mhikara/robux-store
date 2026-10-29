@@ -59,8 +59,7 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [summary, setSummary] = useState**Summary:**
-(null);
+  const [summary, setSummary] = useState(null as Summary | null);
   const [searchQ, setSearchQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
