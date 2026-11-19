@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 
 type Order = {
   id: string;
@@ -110,11 +111,13 @@ export default function StatusPesanan() {
         t = "";
       }
     }
-    if (t && t.length >= 40) {
-      void loadByToken(t);
-    } else {
-      setInitialDone(true);
-    }
+    queueMicrotask(() => {
+      if (t && t.length >= 40) {
+        void loadByToken(t);
+      } else {
+        setInitialDone(true);
+      }
+    });
   }, [loadByToken]);
 
   function onSubmit(e: FormEvent) {
@@ -132,9 +135,9 @@ export default function StatusPesanan() {
     <main className="min-h-screen bg-[#0b0e14] px-4 py-8 text-white">
       <div className="mx-auto max-w-lg">
         <div className="mb-6 flex items-center justify-between">
-          <a href="/" className="text-sm text-slate-400">
+          <Link href="/" className="text-sm text-slate-400">
             ← Beranda
-          </a>
+          </Link>
         </div>
 
         <h1 className="text-center text-3xl font-black text-amber-400">
@@ -268,9 +271,9 @@ export default function StatusPesanan() {
         )}
         <p className="mt-10 text-center text-xs text-slate-500">
           Butuh bantuan?{" "}
-          <a href="/" className="text-amber-400">
+          <Link href="/" className="text-amber-400">
             Kembali ke beranda
-          </a>
+          </Link>
           {" · "}
           <span className="text-slate-400">Hubungi admin via WhatsApp toko Anda</span>
         </p>
