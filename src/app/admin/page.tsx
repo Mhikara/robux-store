@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 
 type AdminConfig = {
   totalStock: number;
@@ -59,7 +60,7 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [summary, setSummary] = useState(null as Summary | null);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [searchQ, setSearchQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
@@ -88,7 +89,47 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    void loadConfig().catch(() => {});
+    let active = true;
+
+    async function initializeAdmin() {
+      try {
+        const response = await fetch("/api/admin/config", {
+          cache: "no-store",
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Gagal memuat pengaturan.");
+        }
+        if (!active) return;
+
+        setConfig(data);
+        setTotalStock(String(data.totalStock));
+        setPrice(String(data.pricePerRobux));
+        setLoggedIn(true);
+
+        const ordersResponse = await fetch("/api/admin/orders", {
+          cache: "no-store",
+        });
+        const ordersData = await ordersResponse.json();
+
+        if (!ordersResponse.ok) {
+          throw new Error(ordersData.error || "Gagal memuat pesanan.");
+        }
+        if (!active) return;
+
+        setOrders(ordersData.orders || []);
+        setSummary(ordersData.summary || null);
+      } catch {
+        // Sesi admin belum aktif atau data gagal dimuat.
+      }
+    }
+
+    void initializeAdmin();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function login(event: FormEvent<HTMLFormElement>) {
@@ -179,9 +220,9 @@ export default function AdminPage() {
             <p className="mt-2 text-sm text-slate-400">
               Atur stok, harga, dan pesanan.
             </p>
-            <a href="/" className="mt-2 inline-block text-xs text-violet-300">
+            <Link href="/" className="mt-2 inline-block text-xs text-violet-300">
               ← Kembali ke toko
-            </a>
+            </Link>
           </div>
           {loggedIn && (
             <button
@@ -360,8 +401,11 @@ export default function AdminPage() {
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    void loadConfig();
-                    setMessage("Data dimuat ulang.");
+                    void loadConfig()
+                      .then(() => setMessage("Data berhasil dimuat ulang."))
+                      .catch((error) => {
+                        setMessage(error instanceof Error ? error.message : "Gagal memuat ulang.");
+                      });
                   }}
                   className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold"
                 >

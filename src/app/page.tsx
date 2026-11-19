@@ -35,7 +35,9 @@ export default function Home() {
   useEffect(() => {
     try {
       const t = sessionStorage.getItem("robux_status_token");
-      if (t && t.length >= 40) setStatusBanner(t);
+      if (t && t.length >= 40) {
+        queueMicrotask(() => setStatusBanner(t));
+      }
     } catch {
       // ignore
     }

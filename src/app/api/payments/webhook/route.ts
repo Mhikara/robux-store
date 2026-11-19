@@ -46,7 +46,7 @@ function verifySignature(
   }
 
   const expected = createHmac("sha256", secret)
-    .update(`\( {timestamp}. \){rawBody}`)
+    .update(`${timestamp}.${rawBody}`)
     .digest();
 
   return signatures.some((signature) => {
@@ -82,9 +82,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let event: any;
+  type KaseraWebhookEvent = {
+    id?: unknown;
+    type?: unknown;
+    livemode?: unknown;
+    data?: {
+      amount?: unknown;
+      status?: unknown;
+      currency?: unknown;
+      external_id?: unknown;
+    };
+  };
+
+  let event: KaseraWebhookEvent;
   try {
-    event = JSON.parse(rawBody);
+    event = JSON.parse(rawBody) as KaseraWebhookEvent;
   } catch {
     return NextResponse.json({ error: "JSON tidak valid." }, { status: 400 });
   }
