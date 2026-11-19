@@ -401,10 +401,11 @@ export default function AdminPage() {
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    void loadConfig().catch((error) => {
-                      setMessage(error instanceof Error ? error.message : "Gagal memuat ulang.");
-                    });
-                    setMessage("Data dimuat ulang.");
+                    void loadConfig()
+                      .then(() => setMessage("Data berhasil dimuat ulang."))
+                      .catch((error) => {
+                        setMessage(error instanceof Error ? error.message : "Gagal memuat ulang.");
+                      });
                   }}
                   className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold"
                 >
